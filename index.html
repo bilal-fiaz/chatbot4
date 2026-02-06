@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="js-container"></div>
+
+    <script src="https://unpkg.com/supersimpledev/react.js"></script>
+    <script src="https://unpkg.com/supersimpledev/react-dom.js"></script>
+
+    <script src="https://unpkg.com/supersimpledev/chatbot.js"></script>
+    <script src=" https://unpkg.com/dayjs@1.11.10/dayjs.min.js"></script>
+
+    <script src="https://unpkg.com/supersimpledev/babel.js"></script>
+    <script type="text/babel">
+
+        function ChatInput({ chatMessages, setChatMessages }) {
+            const [inputText, setInputText] = React.useState('');
+            const [isLoading, setIsLoading] = React.useState(false);
+            function saveInputText(event) {
+                setInputText(event.target.value);
+            }
+            // console.log(inputText)
+            async function sendMessage() {
+                if (isLoading || inputText === '') {
+                    return;
+                }
+
+                // Set isLoading to true at the start, and set it to
+                // false after everything is done.
+                setIsLoading(true);
+
+                // We can put this at the top of the function or
+                // after the first setChatMessages(). Both work.
+                setInputText('');
+                const newChatMessages = [
+                    ...chatMessages,
+                    {
+                        message: inputText,
+                        sender: 'user',
+                        id: crypto.randomUUID(),
+                        time: dayjs().valueOf()
+                    }
+                ]
+                setChatMessages(newChatMessages);
+                setChatMessages([
+                    ...newChatMessages,
+                    // This creates a temporary Loading... message.
+                    // Because we don't save this message in newChatMessages,
+                    // it will be remove later, when we add the response.
+                    {
+                        message: <img
+                            src="loading-spinner.gif" alt="loading-spinner.gif"
+                            className="loading"
+
+
+                        />,
+                        sender: 'robot',
+                        id: crypto.randomUUID()
+                    }
+                ]);
+
+
+                const response = await Chatbot.getResponseAsync(inputText);
+                setChatMessages([
+                    ...newChatMessages,
+                    {
+                        message: response,
+                        sender: 'robot',
+                        id: crypto.randomUUID(),
+                        time: dayjs().valueOf()
+                    }
+                ]);
+                setInputText('')
+                // Set isLoading to false after everything is done.
+                setIsLoading(false);
+            }
+            function enter(event) {
+                if (event.key === 'Enter') {
+                    sendMessage()
+                }
+                if (event.key === 'Escape') {
+                    setInputText('');
+                }
+            }
+            function clearMessages() {
+                setChatMessages([]);
+
+                // Here, you could also run:
+                // localStorage.setItem('messages', JSON.stringify([]));
+
+                // However, because chatMessages is being updated, the
+                // useEffect in the App component will run, and it will
+                // automatically update messages in localStorage to be [].
+            }
+            return (
+                <div className="chat-input-container">
+                    <input
+                        placeholder="Send a message to Chatbot"
+                        size="30"
+                        onChange={saveInputText}
+                        value={inputText}
+                        className="chat-input"
+                        onKeyDown={enter}
+                    />
+                    <button
+                        onClick={sendMessage}
+                        className="send-button"
+                    >Send</button>
+                    <button
+                        onClick={clearMessages}
+                        className="clear-button"
+                    >Clear</button>
+                </div>
+            )
+        }
+        function ChatMessage({ message, sender, time }) {
+            // const message = props.message;
+            // const sender = props.sender;
+            // shortcut
+            // const {message, sender} = props
+            /* if(sender === 'robot'){
+                 return(
+                 <div>
+                     <img src="robot.png" width="50" />
+                     {message}
+                 </div>
+                 );
+             }*/
+            return (
+                <div className={
+                    sender === 'user'
+                        ? 'chat-message-user'
+                        : 'chat-message-robot'
+                }>
+                    {sender === 'robot' && (
+                        <img src="robot.png" className="chat-message-profile" />
+                    )}
+                    <div className="chat-message-text">
+                        <div className='chat-massage-t'>
+                            {message}
+                        </div>
+                        <div className='chat-message-time'>
+                            <p>{dayjs(time).format('h:mm A')}</p>
+
+                        </div>
+
+                    </div>
+
+                    {sender === 'user' && (
+                        <img src="user.png" className="chat-message-profile" />
+                    )}
+                </div>
+            )
+        }
+
+
+        function ChatDateSeparator({ time }) {
+            const messageDate = dayjs(time).startOf('day');
+            const today = dayjs().startOf('day');
+            const yesterday = today.subtract(1, 'day');
+
+            let label = messageDate.format('MMM D, YYYY');
+
+            if (messageDate.isSame(today)) {
+                label = 'Today';
+            } else if (messageDate.isSame(yesterday)) {
+                label = 'Yesterday';
+            }
+
+            return (
+                <div className="chat-separator-container">
+                    <div className="border-left"></div>
+                    <div className="text-container"><p className="chat-separator-text">{label}</p></div>
+                    <div className="border-right"></div>
+                    
+                </div>
+            );
+        }
+
+
+
+
+        function ChatMessages({ chatMessages }) {
+            const chatMessagesRef = React.useRef(null);
+
+            React.useEffect(() => {
+                const containerElem = chatMessagesRef.current;
+                if (containerElem) {
+                    containerElem.scrollTop = containerElem.scrollHeight;
+                }
+            }, [chatMessages]);
+
+            let lastDate = null;
+
+            return (
+                <div className="chat-messages-container" ref={chatMessagesRef}>
+                    {chatMessages.map((chatMessage, index) => {
+                        const currentDate = dayjs(chatMessage.time).startOf('day');
+                        const showDate =
+                            !lastDate || !currentDate.isSame(lastDate, 'day');
+
+                        lastDate = currentDate;
+
+                        return (
+                            <React.Fragment key={chatMessage.id}>
+                                {showDate && (
+                                    <ChatDateSeparator time={chatMessage.time} />
+                                )}
+                                <ChatMessage
+                                    message={chatMessage.message}
+                                    sender={chatMessage.sender}
+                                    time={chatMessage.time}
+                                />
+                            </React.Fragment>
+                        );
+                    })}
+                </div>
+            );
+        }
+
+        function App() {
+            // const [chatMessages, setChatmessages] = React.useState([])
+            // const chatMessages = array[0];
+            // const setChatMessages = array[1];
+
+            //shortcut
+            // const [chatMessages, setChatmessage] = array;
+            const [chatMessages, setChatmessages] = React.useState(JSON.parse(localStorage.getItem('messages')) || [])
+            React.useEffect(() => {
+
+                localStorage.setItem('messages', JSON.stringify(chatMessages))
+            }, [chatMessages])
+
+            return (
+                <div className="app-container">
+
+                    {chatMessages.length === 0
+                        &&
+                        <div className="welcome-container">
+                            <p className="welcome-text">Welcome to the chatbot project! Send a message using the textbox below.</p>
+                        </div>
+                    }
+
+
+                    <ChatMessages
+                        chatMessages={chatMessages}
+                    />
+
+
+                    <ChatInput
+                        chatMessages={chatMessages}
+                        setChatMessages={setChatmessages}
+                    />
+                </div>
+            );
+        }
+
+        const container = document.querySelector('.js-container');
+        ReactDOM.createRoot(container).render(<App />);
+    </script>
+</body>
+
+</html>
